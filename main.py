@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import logging
+from dotenv import load_dotenv
 import os
 from datetime import datetime
 from typing import Literal
@@ -24,6 +25,20 @@ from forecasting_tools import (
 
 logger = logging.getLogger(__name__)
 
+# Wygląda na to, że jak jest uruchamiane przez poetry to  os.getenv('IS_LOCAL')!= 'true'
+# Wygląda na to że raise SystemExit powoduje że loger nie zdąża wyprodukować tekstu, ale print zdąża
+# Wygląda na to, że dodanie do poetry plugina `poetry self add poetry-dotenv-plugin` rozwiązało problem z .env
+# Na chwilę obecną program twierdzi że nie jest urochomiony lokalnie, ale widzi poprawne tokeny z env.
+
+# if os.getenv('IS_LOCAL') == 'true':
+#     load_dotenv()
+#     logger.info(f"Running locally. Loaded env from .env (d1={os.getenv("METACULUS_TOKEN")[-2:]})")
+#     print (f"P Running locally. Loaded env from .env (d1={os.getenv("METACULUS_TOKEN")[-2:]})")
+# else:
+#     logger.info(f"NOT Running locally. Loaded env from .env (d1={os.getenv("METACULUS_TOKEN")[-2:]})")
+#     print (f"P NOT Running locally. Loaded env from .env (d1={os.getenv("METACULUS_TOKEN")[-2:]})")
+
+# raise SystemExit
 
 class TemplateForecaster(ForecastBot):
     """
@@ -58,7 +73,7 @@ class TemplateForecaster(ForecastBot):
     Additionally OpenRouter has large rate limits immediately on account creation
     """
 
-    _max_concurrent_questions = 2  # Set this to whatever works for your search-provider/ai-model rate limits
+    _max_concurrent_questions = 1  # Default 2. Set this to whatever works for your search-provider/ai-model rate limits
     _concurrency_limiter = asyncio.Semaphore(_max_concurrent_questions)
 
     async def run_research(self, question: MetaculusQuestion) -> str:
@@ -103,7 +118,8 @@ class TemplateForecaster(ForecastBot):
             """
         )  # NOTE: The metac bot in Q1 put everything but the question in the system prompt.
         if use_open_router:
-            model_name = "openrouter/perplexity/sonar-reasoning"
+            #model_name = "openrouter/perplexity/sonar-reasoning"
+            model_name = "openrouter/deepseek/deepseek-chat-v3-0324:free"
         else:
             model_name = "perplexity/sonar-pro"  # perplexity/sonar-reasoning and perplexity/sonar are cheaper, but do only 1 search
         model = GeneralLlm(
@@ -353,10 +369,10 @@ if __name__ == "__main__":
 
     template_bot = TemplateForecaster(
         research_reports_per_question=1,
-        predictions_per_research_report=5,
+        predictions_per_research_report=3,
         use_research_summary_to_forecast=False,
-        publish_reports_to_metaculus=True,
-        folder_to_save_reports_to=None,
+        publish_reports_to_metaculus=False,  #switch to True
+        folder_to_save_reports_to="./reports_back/",
         skip_previously_forecasted_questions=True,
         # llms={  # choose your model names or GeneralLlm llms here, otherwise defaults will be chosen for you
         #     "default": GeneralLlm(
@@ -368,7 +384,6 @@ if __name__ == "__main__":
         #     "summarizer": "openai/gpt-4o-mini",
         # },
     )
-
     if run_mode == "tournament":
         forecast_reports = asyncio.run(
             template_bot.forecast_on_tournament(
@@ -387,11 +402,12 @@ if __name__ == "__main__":
     elif run_mode == "test_questions":
         # Example questions are a good way to test the bot's performance on a single question
         EXAMPLE_QUESTIONS = [
-            "https://www.metaculus.com/questions/578/human-extinction-by-2100/",  # Human Extinction - Binary
-            "https://www.metaculus.com/questions/14333/age-of-oldest-human-as-of-2100/",  # Age of Oldest Human - Numeric
-            "https://www.metaculus.com/questions/22427/number-of-new-leading-ai-labs/",  # Number of New Leading AI Labs - Multiple Choice
+            #"https://www.metaculus.com/questions/578/human-extinction-by-2100/" #,  # Human Extinction - Binary
+            #"https://www.metaculus.com/questions/14333/age-of-oldest-human-as-of-2100/",  # Age of Oldest Human - Numeric
+            #"https://www.metaculus.com/questions/22427/number-of-new-leading-ai-labs/",  # Number of New Leading AI Labs - Multiple Choice
         ]
         template_bot.skip_previously_forecasted_questions = False
+        
         questions = [
             MetaculusApi.get_question_by_url(question_url)
             for question_url in EXAMPLE_QUESTIONS
